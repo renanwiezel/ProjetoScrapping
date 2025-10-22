@@ -1,67 +1,61 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.HttpOverrides;
 using ProjetoScrapping.Background;
 using ProjetoScrapping.Services;
 
-namespace ProjetoScrapping
+var builder = WebApplication.CreateBuilder(args);
+
+// services
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// caching + scraper + background refresher
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<INewsScraper, NewsScraper>();
+builder.Services.AddHostedService<NewsCacheRefresher>();
+
+// CORS (em prod: restrinja aos domínios do seu front)
+builder.Services.AddCors(options =>
 {
-    public class Program
-    {
-        public static void Main(string[] args)
-        {
-            var builder = WebApplication.CreateBuilder(args);
+    options.AddPolicy("AllowAll", p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+});
 
-            // Add services
-            builder.Services.AddControllers();
-            builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+var app = builder.Build();
 
-            // CORS: permite tudo (para agora). Depois podemos travar por domínio.
-            builder.Services.AddCors(options =>
-            {
-                options.AddPolicy("AllowAll", policy =>
-                    policy.AllowAnyOrigin()
-                          .AllowAnyHeader()
-                          .AllowAnyMethod());
-            });
+// aceitar X-Forwarded-* do proxy do Render
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
 
-            // ======= ADIÇÃO IMPORTANTE =======
-            // Cache + background + scraper
-            builder.Services.AddMemoryCache();
-            builder.Services.AddSingleton<INewsScraper, NewsScraper>();
-            builder.Services.AddHostedService<NewsCacheRefresher>();
-            // =================================
-
-            var app = builder.Build();
-
-            // Habilita Swagger quando estiver em Development OU quando a variável de ambiente ENABLE_SWAGGER= true
-            var enableSwagger = app.Environment.IsDevelopment()
-                                || string.Equals(System.Environment.GetEnvironmentVariable("ENABLE_SWAGGER"), "true", System.StringComparison.OrdinalIgnoreCase);
-
-            if (enableSwagger)
-            {
-                app.UseSwagger();
-                app.UseSwaggerUI();
-            }
-
-            app.UseHttpsRedirection();
-            app.UseCors("AllowAll");
-            app.UseStaticFiles();
-            app.UseAuthorization();
-
-            // Endpoint de health-check
-            app.MapGet("/health", () => Results.Ok("OK"));
-
-            // Controllers (incluindo Notícias)
-            app.MapControllers();
-
-            // fallback para hospedar frontend no wwwroot
-            app.MapFallbackToFile("index.html");
-
-            app.Run();
-        }
-    }
+// Swagger em dev ou ENABLE_SWAGGER=true
+var enableSwagger = app.Environment.IsDevelopment()
+    || string.Equals(Environment.GetEnvironmentVariable("ENABLE_SWAGGER"), "true", StringComparison.OrdinalIgnoreCase);
+if (enableSwagger)
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
+
+app.UseHttpsRedirection();
+app.UseCors("AllowAll");
+
+// wwwroot (com cache opcional)
+app.UseStaticFiles(/* ver opção de cache acima */);
+
+app.UseAuthorization();
+
+// health
+app.MapGet("/health", () => Results.Ok("OK"));
+
+// controllers
+app.MapControllers();
+
+// SPA fallback
+app.MapFallbackToFile("index.html");
+
+app.Run();

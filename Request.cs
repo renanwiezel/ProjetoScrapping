@@ -26,7 +26,6 @@ namespace ProjetoScrapping
                 CookieContainer = cookieJar,
             };
 
-            // Preferir TLS moderno
             handler.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
 
             client = new HttpClient(handler)
@@ -34,11 +33,9 @@ namespace ProjetoScrapping
                 Timeout = TimeSpan.FromSeconds(30)
             };
 
-            // Preferir HTTP/2; se não der, negocia o menor
             client.DefaultRequestVersion = new Version(2, 0);
             client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
 
-            // Cabeçalhos “browser-like”
             client.DefaultRequestHeaders.UserAgent.ParseAdd(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
             client.DefaultRequestHeaders.Accept.ParseAdd(
@@ -46,7 +43,6 @@ namespace ProjetoScrapping
             client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7");
             client.DefaultRequestHeaders.Connection.ParseAdd("keep-alive");
 
-            // Headers que alguns CDNs esperam ver em navegação real
             client.DefaultRequestHeaders.Add("Upgrade-Insecure-Requests", "1");
             client.DefaultRequestHeaders.Add("Sec-Fetch-Site", "none");
             client.DefaultRequestHeaders.Add("Sec-Fetch-Mode", "navigate");
@@ -56,6 +52,32 @@ namespace ProjetoScrapping
 
         public static async Task<string> GetPageAsync(string url)
         {
+            // Se existir variável de ambiente SCRAPER_API_KEY, usa proxy (ScraperAPI exemplo)
+            var scraperKey = Environment.GetEnvironmentVariable("SCRAPER_API_KEY");
+            if (!string.IsNullOrWhiteSpace(scraperKey))
+            {
+                // Exemplo com ScraperAPI; parâmetro render=true pede execução JS no serviço
+                var proxy = $"http://api.scraperapi.com?api_key={WebUtility.UrlEncode(scraperKey)}&url={WebUtility.UrlEncode(url)}&render=true";
+                try
+                {
+                    using var req = new HttpRequestMessage(HttpMethod.Get, proxy);
+                    using var res = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+                    if (!res.IsSuccessStatusCode)
+                    {
+                        var body = await SafeReadAsync(res);
+                        throw new HttpRequestException($"Proxy request failed {res.StatusCode}. Snippet: {body}");
+                    }
+                    return await res.Content.ReadAsStringAsync();
+                }
+                catch (Exception ex)
+                {
+                    // se proxy falhar, tenta a rota normal abaixo
+                    // (não rethrow para permitir fallback)
+                    Console.Error.WriteLine($"Proxy fetch failed: {ex.Message}");
+                }
+            }
+
+            // Fallback: tentativa direta (como antes)
             int maxAttempts = 3;
             for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
@@ -63,17 +85,15 @@ namespace ProjetoScrapping
                 {
                     using var req = new HttpRequestMessage(HttpMethod.Get, url);
 
-                    // Referrer coerente com a origem
                     try
                     {
                         var baseUri = new Uri(url);
                         req.Headers.Referrer = new Uri(baseUri.GetLeftPart(UriPartial.Authority));
                     }
-                    catch { /* ignore */ }
+                    catch { }
 
                     using var res = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
 
-                    // Se bloqueou, capture o body para diagnóstico
                     if (!res.IsSuccessStatusCode)
                     {
                         var body = await SafeReadAsync(res);
@@ -86,12 +106,10 @@ namespace ProjetoScrapping
                         throw new HttpRequestException(msg);
                     }
 
-                    // OK
                     return await res.Content.ReadAsStringAsync();
                 }
                 catch (HttpRequestException) when (attempt < maxAttempts)
                 {
-                    // Backoff com jitter (anti-burst)
                     await Task.Delay(500 * attempt + rng.Next(0, 350));
                     continue;
                 }
