@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36603.0 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProjetoScrapping", "ProjetoScrapping.csproj", "{6B789076-9715-428B-A307-512C5E0ED839}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6B789076-9715-428B-A307-512C5E0ED839}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B789076-9715-428B-A307-512C5E0ED839}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B789076-9715-428B-A307-512C5E0ED839}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B789076-9715-428B-A307-512C5E0ED839}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {66EDD4DE-F4F6-478F-AA72-0D5FACAF44B1}
+	EndGlobalSection
+EndGlobal

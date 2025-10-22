@@ -1,0 +1,268 @@
+﻿/* ====== Design tokens ====== */
+:root {
+    --bg: #071026;
+    --panel: #0b1220;
+    --muted: #9aa5b1;
+    --accent: #2dd4bf;
+    --card: #071427;
+    --glass: rgba(255,255,255,0.03);
+    --shadow-sm: 0 6px 18px rgba(2,6,23,0.18);
+    --shadow-lg: 0 12px 30px rgba(2,6,23,0.22);
+    --gap: 16px;
+    --radius: 12px;
+}
+
+/* ====== Base ====== */
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    font-family: Inter, system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+    background: linear-gradient(180deg, #041024 0%, var(--bg) 100%);
+    color: #e6eef6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 18px;
+}
+
+/* ====== Header ====== */
+.site-header {
+    display: block;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    background: linear-gradient(90deg, rgba(255,255,255,0.01), rgba(0,0,0,0));
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    backdrop-filter: blur(4px);
+}
+
+/* NEW: controla layout interno do header para manter botão ao lado do texto */
+.header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    /* impedir quebra que empurra botão para a linha de baixo */
+    flex-wrap: nowrap;
+    min-height: 44px;
+}
+
+/* brand */
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0; /* permite truncar texto se necessário */
+}
+
+/* título com truncamento quando o espaço for reduzido */
+.brand-title {
+    font-size: 1.05rem;
+    letter-spacing: 0.6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: calc(100% - 140px); /* deixa espaço para o botão; ajuste se necessário */
+}
+
+/* bolinha e rótulo online */
+.brand-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.92rem;
+    color: var(--muted);
+}
+
+/* data de atualização ao lado com estilo discreto */
+.brand .muted {
+    color: var(--muted);
+    font-size: 0.92rem;
+}
+
+/* botão sempre mantém seu tamanho e fica à direita */
+.btn {
+    background: linear-gradient(180deg, #10566a, #0a3b46);
+    color: #e6fdfb;
+    border: 1px solid rgba(255,255,255,0.06);
+    padding: 10px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    box-shadow: 0 6px 14px rgba(3,10,18,0.3);
+    flex: 0 0 auto; /* não encolhe além do necessário */
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    transition: all .18s ease;
+}
+
+/* ====== Main / Grid ====== */
+.main {
+    padding-top: 18px;
+    padding-bottom: 28px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--gap);
+}
+
+/* ====== Card ====== */
+.card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border-radius: var(--radius);
+    border: 1px solid rgba(255,255,255,0.02);
+    padding: 14px;
+    box-shadow: var(--shadow-sm);
+    transition: transform .18s ease, box-shadow .18s ease;
+    overflow: hidden;
+}
+
+.card:hover {
+    transform: translateY(-6px);
+    box-shadow: var(--shadow-lg);
+}
+
+.card-link {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    text-decoration: none;
+    color: inherit;
+}
+
+.card-title {
+    margin: 0 0 8px 0;
+    font-size: 1.02rem;
+    line-height: 1.25;
+    color: #e6f8f6;
+}
+
+.card-desc {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.92rem;
+    max-height: 3.6em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ====== Skeleton loading ====== */
+.skeleton {
+    position: relative;
+    overflow: hidden;
+    height: 120px;
+    border-radius: 10px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.03) 50%, rgba(255,255,255,0.02) 100%);
+    border: 1px solid rgba(255,255,255,0.02);
+    box-shadow: var(--shadow-sm);
+    animation: shimmer 1.2s linear infinite;
+}
+
+@keyframes shimmer {
+    0% { background-position: -200px 0; }
+    100% { background-position: 200px 0; }
+}
+
+/* card meta/footer */
+.card-meta {
+    margin-top: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.muted {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/* ====== Alert (erro) ====== */
+.alert {
+    background: rgba(255,80,80,0.06);
+    color: #ffb3b3;
+    border: 1px solid rgba(255,80,80,0.12);
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+/* ====== Footer ====== */
+.footer {
+    border-top: 1px solid rgba(255,255,255,0.02);
+    padding: 14px 18px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.88rem;
+    background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0));
+    margin-top: 28px;
+    border-radius: 8px;
+}
+
+/* Footer small tweak on dark backgrounds */
+.footer small {
+    opacity: 0.9;
+    display: block;
+}
+
+/* ====== Responsive tweaks ====== */
+@media (max-width: 800px) {
+    .wrap {
+        padding: 12px;
+    }
+
+    .brand-title {
+        max-width: calc(100% - 100px);
+    }
+
+    .grid {
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    }
+
+    .btn {
+        padding: 8px 10px;
+        font-size: 0.95rem;
+    }
+}
+
+/* permitimos quebra em telas muito pequenas para evitar overflow */
+@media (max-width: 420px) {
+    .header-bar {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .brand-title {
+        max-width: 100%;
+    }
+
+    .btn {
+        align-self: center;
+    }
+}
+
+/* Motion safe */
+@media (prefers-reduced-motion: reduce) {
+    .btn, .card {
+        transition: none;
+    }
+
+    .skeleton::after {
+        animation: none;
+    }
+}
