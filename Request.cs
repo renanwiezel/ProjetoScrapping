@@ -16,8 +16,17 @@ namespace ProjetoScrapping
         private static readonly CookieContainer cookieJar = new CookieContainer();
         private static readonly Random rng = new Random();
 
+        // le a whitelist de hosts (em runtime) da variável ALLOWED_SITES
+        private static readonly HashSet<string> AllowedHosts;
+
         static Request()
         {
+            // carregar whitelist de variável de ambiente (ex: "www.sbravattimarcas.com.br,noticias.uol.com.br")
+            var allowed = Environment.GetEnvironmentVariable("ALLOWED_SITES") ?? "www.sbravattimarcas.com.br";
+            AllowedHosts = allowed.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                 .Select(h => h.ToLowerInvariant())
+                                 .ToHashSet();
+
             var handler = new HttpClientHandler
             {
                 AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
@@ -50,8 +59,27 @@ namespace ProjetoScrapping
             client.DefaultRequestHeaders.Add("Sec-Fetch-Dest", "document");
         }
 
+        private static bool IsHostAllowed(string url)
+        {
+            try
+            {
+                var host = new Uri(url).Host.ToLowerInvariant();
+                return AllowedHosts.Contains(host);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public static async Task<string> GetPageAsync(string url)
         {
+            // bloqueia requisições para hosts não permitidos imediatamente
+            if (!IsHostAllowed(url))
+            {
+                throw new HttpRequestException($"Host não permitido: {url}");
+            }
+
             // Se existir variável de ambiente SCRAPER_API_KEY, usa proxy (ScraperAPI exemplo)
             var scraperKey = Environment.GetEnvironmentVariable("SCRAPER_API_KEY");
             if (!string.IsNullOrWhiteSpace(scraperKey))
