@@ -312,7 +312,15 @@ namespace ProjetoScrapping
 
             // fallback por palavras-chave (mantemos suporte a vários sites)
             var u = url.ToLowerInvariant();
-            return u.Contains("noticia") || u.Contains("noticias") || u.Contains("news") || u.Contains("feed") || u.Contains("rss") || u.Contains("uol") || u.Contains("g1") || u.Contains("folha");
+            return u.Contains("noticia")
+                || u.Contains("noticias")
+                || u.Contains("news")
+                || u.Contains("feed")
+                || u.Contains("rss")
+                // referências ao UOL comentadas
+                // || u.Contains("uol") // comentado temporariamente para testes (referência UOL)
+                || u.Contains("g1")
+                || u.Contains("folha");
         }
 
         private static string? ExtractJsonField(string json, string field)
