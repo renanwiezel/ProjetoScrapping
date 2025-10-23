@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Threading.Tasks;
 using System.Security.Authentication;
+using System.Threading.Tasks;
 using HtmlAgilityPack;
 
 namespace ProjetoScrapping
@@ -19,10 +19,14 @@ namespace ProjetoScrapping
         // le a whitelist de hosts (em runtime) da variável ALLOWED_SITES
         private static readonly HashSet<string> AllowedHosts;
 
+        // local para persistir cookies UOL se forem obtidos pelo scraper
+        private static readonly string CookieStoreDir = Path.Combine(AppContext.BaseDirectory ?? ".", "Data");
+        private static readonly string UolCookieFile = Path.Combine(CookieStoreDir, "uol_cookies.txt");
+        private static readonly Uri UolRoot = new Uri("https://www.uol.com.br/");
+
         static Request()
         {
-            // carregar whitelist de variável de ambiente (ex: "www.sbravattimarcas.com.br,noticias.uol.com.br")
-            var allowed = Environment.GetEnvironmentVariable("ALLOWED_SITES") ?? "www.uol.com.br";
+            var allowed = Environment.GetEnvironmentVariable("ALLOWED_SITES") ?? "www.sbravattimarcas.com.br,noticias.uol.com.br,uol.com.br,www.uol.com.br";
             AllowedHosts = allowed.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                                  .Select(h => h.ToLowerInvariant())
                                  .ToHashSet();
@@ -45,10 +49,8 @@ namespace ProjetoScrapping
             client.DefaultRequestVersion = new Version(2, 0);
             client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
 
-            client.DefaultRequestHeaders.UserAgent.ParseAdd(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-            client.DefaultRequestHeaders.Accept.ParseAdd(
-                "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            client.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
             client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7");
             client.DefaultRequestHeaders.Connection.ParseAdd("keep-alive");
 
@@ -58,34 +60,95 @@ namespace ProjetoScrapping
             client.DefaultRequestHeaders.Add("Sec-Fetch-User", "?1");
             client.DefaultRequestHeaders.Add("Sec-Fetch-Dest", "document");
 
-            // Injetar cookies UOL a partir da variável de ambiente UOL_COOKIES, se definida.
-            // Defina UOL_COOKIES com a string de cookies (ex: "a=1; b=2; c=3") para que o CookieContainer as envie para noticias.uol.com.br
+            // Inicializa cookies UOL a partir de variável de ambiente ou arquivo
             try
             {
                 var cookieString = Environment.GetEnvironmentVariable("UOL_COOKIES");
                 if (!string.IsNullOrWhiteSpace(cookieString))
                 {
-                    var uolUri = new Uri("https://www.uol.com.br/");
-                    var cookies = cookieString.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-                    foreach (var c in cookies)
-                    {
-                        var parts = c.Split(new[] { '=' }, 2);
-                        if (parts.Length == 2)
-                        {
-                            var name = parts[0].Trim();
-                            var value = parts[1].Trim();
-                            try
-                            {
-                                cookieJar.Add(uolUri, new Cookie(name, Uri.UnescapeDataString(value)));
-                            }
-                            catch { /* ignora cookies inválidos */ }
-                        }
-                    }
+                    EnsureCookieStoreDirectory();
+                    File.WriteAllText(UolCookieFile, cookieString);
+                    LoadCookiesFromString(UolRoot, cookieString);
+                }
+                else if (File.Exists(UolCookieFile))
+                {
+                    var stored = File.ReadAllText(UolCookieFile);
+                    if (!string.IsNullOrWhiteSpace(stored))
+                        LoadCookiesFromString(UolRoot, stored);
                 }
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Falha ao injetar cookies UOL: {ex.Message}");
+                Console.Error.WriteLine($"Erro ao inicializar cookies UOL: {ex.Message}");
+            }
+        }
+
+        private static void EnsureCookieStoreDirectory()
+        {
+            try { Directory.CreateDirectory(CookieStoreDir); } catch { }
+        }
+
+        private static void LoadCookiesFromString(Uri domain, string cookieString)
+        {
+            try
+            {
+                var cookies = cookieString.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var c in cookies)
+                {
+                    var parts = c.Split(new[] { '=' }, 2);
+                    if (parts.Length == 2)
+                    {
+                        var name = parts[0].Trim();
+                        var value = parts[1].Trim();
+                        try { cookieJar.Add(domain, new Cookie(name, Uri.UnescapeDataString(value))); }
+                        catch { }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private static void SaveCookiesToFile(Uri domain, string filePath)
+        {
+            try
+            {
+                EnsureCookieStoreDirectory();
+                var cc = cookieJar.GetCookies(domain).Cast<Cookie>();
+                var s = string.Join(';', cc.Select(c => c.Name + "=" + Uri.EscapeDataString(c.Value)));
+                File.WriteAllText(filePath, s);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Falha ao salvar cookies: {ex.Message}");
+            }
+        }
+
+        private static async Task EnsureCookiesForUolAsync()
+        {
+            try
+            {
+                var existing = cookieJar.GetCookies(UolRoot);
+                if (existing != null && existing.Count > 0) return;
+
+                if (File.Exists(UolCookieFile))
+                {
+                    var stored = File.ReadAllText(UolCookieFile);
+                    if (!string.IsNullOrWhiteSpace(stored))
+                    {
+                        LoadCookiesFromString(UolRoot, stored);
+                        var after = cookieJar.GetCookies(UolRoot);
+                        if (after != null && after.Count > 0) return;
+                    }
+                }
+
+                using var req = new HttpRequestMessage(HttpMethod.Get, UolRoot);
+                using var res = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+                _ = await SafeReadAsync(res);
+                SaveCookiesToFile(UolRoot, UolCookieFile);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Falha ao garantir cookies UOL: {ex.Message}");
             }
         }
 
@@ -97,28 +160,27 @@ namespace ProjetoScrapping
                 var host = new Uri(url).Host.ToLowerInvariant();
                 return AllowedHosts.Contains(host);
             }
-            catch
-            {
-                return false;
-            }
+            catch { return false; }
         }
 
-        // Fornece a lista atual de hosts permitidos (útil para mensagens de erro)
         public static string GetAllowedHosts() => string.Join(',', AllowedHosts);
 
         public static async Task<string> GetPageAsync(string url)
         {
-            // bloqueia requisições para hosts não permitidos imediatamente
             if (!IsHostAllowed(url))
-            {
                 throw new HttpRequestException($"Host não permitido: {url}");
-            }
 
-            // Se existir variável de ambiente SCRAPER_API_KEY, usa proxy (ScraperAPI exemplo)
+            try
+            {
+                var u = new Uri(url);
+                if (u.Host.Contains("uol.com"))
+                    await EnsureCookiesForUolAsync();
+            }
+            catch { }
+
             var scraperKey = Environment.GetEnvironmentVariable("SCRAPER_API_KEY");
             if (!string.IsNullOrWhiteSpace(scraperKey))
             {
-                // Exemplo com ScraperAPI; parâmetro render=true pede execução JS no serviço
                 var proxy = $"http://api.scraperapi.com?api_key={WebUtility.UrlEncode(scraperKey)}&url={WebUtility.UrlEncode(url)}&render=true";
                 try
                 {
@@ -133,20 +195,16 @@ namespace ProjetoScrapping
                 }
                 catch (Exception ex)
                 {
-                    // se proxy falhar, tenta a rota normal abaixo
-                    // (não rethrow para permitir fallback)
                     Console.Error.WriteLine($"Proxy fetch failed: {ex.Message}");
                 }
             }
 
-            // Fallback: tentativa direta (como antes)
             int maxAttempts = 3;
             for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
                 try
                 {
                     using var req = new HttpRequestMessage(HttpMethod.Get, url);
-
                     try
                     {
                         var baseUri = new Uri(url);
@@ -155,7 +213,6 @@ namespace ProjetoScrapping
                     catch { }
 
                     using var res = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
-
                     if (!res.IsSuccessStatusCode)
                     {
                         var body = await SafeReadAsync(res);
@@ -167,7 +224,6 @@ namespace ProjetoScrapping
                         }
                         throw new HttpRequestException(msg);
                     }
-
                     return await res.Content.ReadAsStringAsync();
                 }
                 catch (HttpRequestException) when (attempt < maxAttempts)
@@ -183,7 +239,7 @@ namespace ProjetoScrapping
         private static async Task<string> SafeReadAsync(HttpResponseMessage res)
         {
             try { return await res.Content.ReadAsStringAsync(); }
-            catch { return ""; }
+            catch { return string.Empty; }
         }
 
         // ---------- PARSER ROBUSTO ----------
@@ -196,22 +252,100 @@ namespace ProjetoScrapping
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
 
-            // 1) Alvos conhecidos (ajuste para o site real)
-            TryPickBySelectors(doc, baseUrl, noticias, seenTitles, seenUrls);
+            try
+            {
+                var host = new Uri(baseUrl).Host.ToLowerInvariant();
+                if (host.Contains("uol.com"))
+                    TryPickForUol(doc, baseUrl, noticias, seenTitles, seenUrls);
+            }
+            catch { }
 
-            // 2) Fallback: metas (og:title / og:url)
+            if (noticias.Count < 10)
+                TryPickBySelectors(doc, baseUrl, noticias, seenTitles, seenUrls);
+
             if (noticias.Count < 10)
                 TryPickByMetaOg(doc, baseUrl, noticias, seenTitles, seenUrls);
 
-            // 3) Fallback: JSON-LD (Article/NewsArticle)
             if (noticias.Count < 10)
                 TryPickByJsonLd(doc, baseUrl, noticias, seenTitles, seenUrls);
 
-            // 4) Fallback: varredura geral por <a> com título legível
             if (noticias.Count < 10)
                 TryPickByAnchors(doc, baseUrl, noticias, seenTitles, seenUrls);
 
             return noticias.Take(30).ToList();
+        }
+
+        private static void TryPickForUol(HtmlDocument doc, string baseUrl,
+            List<Noticia> outList, HashSet<string> seenTitles, HashSet<string> seenUrls)
+        {
+            var articles = doc.DocumentNode.SelectNodes("//article");
+            if (articles != null)
+            {
+                foreach (var art in articles)
+                {
+                    var a = art.SelectSingleNode(".//a[@href]");
+                    if (a == null) continue;
+
+                    var href = a.GetAttributeValue("href", null);
+                    if (string.IsNullOrWhiteSpace(href)) continue;
+
+                    var titleNode = art.SelectSingleNode(".//h2|.//h3|.//h4");
+                    var title = titleNode != null ? HtmlEntity.DeEntitize(titleNode.InnerText).Trim() : HtmlEntity.DeEntitize(a.InnerText).Trim();
+                    if (string.IsNullOrWhiteSpace(title) || title.Length < 8) continue;
+
+                    var url = ResolveUrl(baseUrl, href);
+                    if (!IsLikelyNews(baseUrl, url)) continue;
+
+                    if (seenTitles.Add(title) && seenUrls.Add(url))
+                        outList.Add(new Noticia(title, null, url));
+
+                    if (outList.Count >= 30) break;
+                }
+                if (outList.Count > 0) return;
+            }
+
+            var mainAnchors = doc.DocumentNode.SelectNodes("//main//a[@href] | //div[contains(@class,'home') or contains(@class,'section')]//a[@href]");
+            if (mainAnchors != null)
+            {
+                foreach (var a in mainAnchors)
+                {
+                    var title = HtmlEntity.DeEntitize(a.InnerText).Trim();
+                    if (string.IsNullOrWhiteSpace(title) || title.Length < 20) continue;
+
+                    var href = a.GetAttributeValue("href", null);
+                    if (string.IsNullOrWhiteSpace(href)) continue;
+
+                    var url = ResolveUrl(baseUrl, href);
+                    if (!IsLikelyNews(baseUrl, url)) continue;
+
+                    if (seenTitles.Add(title) && seenUrls.Add(url))
+                        outList.Add(new Noticia(title, null, url));
+
+                    if (outList.Count >= 30) break;
+                }
+                if (outList.Count > 0) return;
+            }
+
+            var anchors = doc.DocumentNode.SelectNodes("//a[contains(@href,'/noticias/') or contains(@href,'/noticias.') or contains(@href,'/noticias-')]");
+            if (anchors != null)
+            {
+                foreach (var a in anchors)
+                {
+                    var title = HtmlEntity.DeEntitize(a.InnerText).Trim();
+                    if (string.IsNullOrWhiteSpace(title) || title.Length < 15) continue;
+
+                    var href = a.GetAttributeValue("href", null);
+                    if (string.IsNullOrWhiteSpace(href)) continue;
+
+                    var url = ResolveUrl(baseUrl, href);
+                    if (!IsLikelyNews(baseUrl, url)) continue;
+
+                    if (seenTitles.Add(title) && seenUrls.Add(url))
+                        outList.Add(new Noticia(title, null, url));
+
+                    if (outList.Count >= 30) break;
+                }
+            }
         }
 
         private static void TryPickBySelectors(HtmlDocument doc, string baseUrl,
@@ -225,9 +359,7 @@ namespace ProjetoScrapping
                 var title = Clean(h3.InnerText);
                 if (string.IsNullOrWhiteSpace(title)) continue;
 
-                var a = h3.SelectSingleNode("./ancestor::a[1]") ??
-                        h3.ParentNode?.SelectSingleNode(".//a[@href]");
-
+                var a = h3.SelectSingleNode("./ancestor::a[1]") ?? h3.ParentNode?.SelectSingleNode(".//a[@href]");
                 if (a == null) continue;
 
                 var href = a.GetAttributeValue("href", null);
@@ -261,7 +393,6 @@ namespace ProjetoScrapping
         private static void TryPickByJsonLd(HtmlDocument doc, string baseUrl,
             List<Noticia> outList, HashSet<string> seenTitles, HashSet<string> seenUrls)
         {
-            // Procura <script type="application/ld+json"> com @type Article/NewsArticle
             var scripts = doc.DocumentNode.SelectNodes("//script[@type='application/ld+json']");
             if (scripts == null) return;
 
@@ -270,9 +401,7 @@ namespace ProjetoScrapping
                 var json = s.InnerText;
                 if (string.IsNullOrWhiteSpace(json)) continue;
 
-                // parsing leve só pra achar headline/url (evita dependência de JSON lib aqui)
-                if (json.IndexOf("NewsArticle", StringComparison.OrdinalIgnoreCase) < 0 &&
-                    json.IndexOf("\"Article\"", StringComparison.OrdinalIgnoreCase) < 0)
+                if (json.IndexOf("NewsArticle", StringComparison.OrdinalIgnoreCase) < 0 && json.IndexOf("\"Article\"", StringComparison.OrdinalIgnoreCase) < 0)
                     continue;
 
                 var title = ExtractJsonField(json, "headline") ?? ExtractJsonField(json, "name");
@@ -311,9 +440,7 @@ namespace ProjetoScrapping
             }
         }
 
-        // ---------- Helpers ----------
-        private static string Clean(string? s) =>
-            HtmlEntity.DeEntitize(s ?? "").Trim();
+        private static string Clean(string? s) => HtmlEntity.DeEntitize(s ?? "").Trim();
 
         private static string ResolveUrl(string baseUrl, string href)
         {
@@ -330,7 +457,6 @@ namespace ProjetoScrapping
         {
             if (string.IsNullOrWhiteSpace(url)) return false;
 
-            // se host bater com a host da base, aceitamos
             try
             {
                 var baseHost = new Uri(baseUrl).Host;
@@ -338,9 +464,8 @@ namespace ProjetoScrapping
                 if (string.Equals(baseHost, urlHost, StringComparison.OrdinalIgnoreCase))
                     return true;
             }
-            catch { /* ignore */ }
+            catch { }
 
-            // fallback por palavras-chave (mantemos suporte a vários sites)
             var u = url.ToLowerInvariant();
             return u.Contains("noticia")
                 || u.Contains("noticias")
@@ -374,6 +499,22 @@ namespace ProjetoScrapping
         {
             var html = await GetPageAsync(url);
             return ParseHtml(html, url);
+        }
+
+        // API pública para atualizar cookies UOL em runtime
+        public static void UpdateUolCookies(string cookieString)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(cookieString)) return;
+                EnsureCookieStoreDirectory();
+                File.WriteAllText(UolCookieFile, cookieString);
+                LoadCookiesFromString(UolRoot, cookieString);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Falha ao atualizar cookies UOL: {ex.Message}");
+            }
         }
     }
 }
