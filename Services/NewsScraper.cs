@@ -76,10 +76,10 @@ namespace ProjetoScrapping.Services
             var fallbacks = new[]
             {
                 // referências ao UOL comentadas para manter apenas sbravattimarcas nos testes
-                // "https://feeds.folha.uol.com.br/emcimadahora/rss091.xml", // comentado temporariamente para testes (referência UOL)
+                "https://feeds.folha.uol.com.br/emcimadahora/rss091.xml",
                 "https://g1.globo.com/rss/g1/",
                 "https://www.estadao.com.br/rss/ultimas.xml",
-                // "https://www.uol.com.br/feed.xml" // comentado temporariamente para testes (referência UOL)
+                "https://www.uol.com.br/feed.xml"
             };
 
             foreach (var f in fallbacks)

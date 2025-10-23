@@ -22,7 +22,7 @@ namespace ProjetoScrapping
         static Request()
         {
             // carregar whitelist de variável de ambiente (ex: "www.sbravattimarcas.com.br,noticias.uol.com.br")
-            var allowed = Environment.GetEnvironmentVariable("ALLOWED_SITES") ?? "www.sbravattimarcas.com.br";
+            var allowed = Environment.GetEnvironmentVariable("ALLOWED_SITES") ?? "www.uol.com.br";
             AllowedHosts = allowed.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                                  .Select(h => h.ToLowerInvariant())
                                  .ToHashSet();
@@ -57,6 +57,36 @@ namespace ProjetoScrapping
             client.DefaultRequestHeaders.Add("Sec-Fetch-Mode", "navigate");
             client.DefaultRequestHeaders.Add("Sec-Fetch-User", "?1");
             client.DefaultRequestHeaders.Add("Sec-Fetch-Dest", "document");
+
+            // Injetar cookies UOL a partir da variável de ambiente UOL_COOKIES, se definida.
+            // Defina UOL_COOKIES com a string de cookies (ex: "a=1; b=2; c=3") para que o CookieContainer as envie para noticias.uol.com.br
+            try
+            {
+                var cookieString = Environment.GetEnvironmentVariable("UOL_COOKIES");
+                if (!string.IsNullOrWhiteSpace(cookieString))
+                {
+                    var uolUri = new Uri("https://www.uol.com.br/");
+                    var cookies = cookieString.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var c in cookies)
+                    {
+                        var parts = c.Split(new[] { '=' }, 2);
+                        if (parts.Length == 2)
+                        {
+                            var name = parts[0].Trim();
+                            var value = parts[1].Trim();
+                            try
+                            {
+                                cookieJar.Add(uolUri, new Cookie(name, Uri.UnescapeDataString(value)));
+                            }
+                            catch { /* ignora cookies inválidos */ }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Falha ao injetar cookies UOL: {ex.Message}");
+            }
         }
 
         // Exposto para controllers/clients validarem antes de chamar o scraper
@@ -317,8 +347,7 @@ namespace ProjetoScrapping
                 || u.Contains("news")
                 || u.Contains("feed")
                 || u.Contains("rss")
-                // referências ao UOL comentadas
-                // || u.Contains("uol") // comentado temporariamente para testes (referência UOL)
+                || u.Contains("uol")
                 || u.Contains("g1")
                 || u.Contains("folha");
         }

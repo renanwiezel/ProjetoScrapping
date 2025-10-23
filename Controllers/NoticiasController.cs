@@ -9,7 +9,7 @@ namespace ProjetoScrapping.Controllers
     {
         // GET api/noticias
         [HttpGet]
-        public async Task<IActionResult> Get([FromQuery] string site = "https://www.sbravattimarcas.com.br/")
+        public async Task<IActionResult> Get([FromQuery] string site = "https://www.uol.com.br/")
         {
             if (!ProjetoScrapping.Request.IsHostAllowed(site))
             {
@@ -36,7 +36,7 @@ namespace ProjetoScrapping.Controllers
 
         // GET api/noticias/json -> retorna JSON com a lista (para o frontend consumir)
         [HttpGet("json")]
-        public async Task<IActionResult> GetJson([FromQuery] string site = "https://www.sbravattimarcas.com.br/")
+        public async Task<IActionResult> GetJson([FromQuery] string site = "https://www.uol.com.br/")
         {
             if (!ProjetoScrapping.Request.IsHostAllowed(site))
             {
