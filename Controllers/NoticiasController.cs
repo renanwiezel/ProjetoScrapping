@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Text;
-using System;
-using System.Linq;
 
 namespace ProjetoScrapping.Controllers
 {
@@ -13,6 +11,12 @@ namespace ProjetoScrapping.Controllers
         [HttpGet]
         public async Task<IActionResult> Get([FromQuery] string site = "https://www.sbravattimarcas.com.br/")
         {
+            if (!ProjetoScrapping.Request.IsHostAllowed(site))
+            {
+                var allowed = ProjetoScrapping.Request.GetAllowedHosts();
+                return BadRequest(new { error = "Host não permitido", site, allowed });
+            }
+
             var noticias = await ProjetoScrapping.Request.GetNoticiasAsync(site);
 
             // gera HTML simples com a lista de notícias
@@ -34,19 +38,37 @@ namespace ProjetoScrapping.Controllers
         [HttpGet("json")]
         public async Task<IActionResult> GetJson([FromQuery] string site = "https://www.sbravattimarcas.com.br/")
         {
-            var noticias = await ProjetoScrapping.Request.GetNoticiasAsync(site);
-            var result = new
+            if (!ProjetoScrapping.Request.IsHostAllowed(site))
             {
-                updatedAt = DateTime.UtcNow.ToString("o"),
-                items = noticias.Select(n => new
+                var allowed = ProjetoScrapping.Request.GetAllowedHosts();
+                return BadRequest(new { error = "Host não permitido", site, allowed });
+            }
+
+            try
+            {
+                var noticias = await ProjetoScrapping.Request.GetNoticiasAsync(site);
+                var result = new
                 {
-                    title = n.Title,
-                    description = n.Description,
-                    url = n.Url,
-                    publishedAt = n.PublishedAt.HasValue ? n.PublishedAt.Value.ToString("o") : null
-                }).ToArray()
-            };
-            return Ok(result);
+                    updatedAt = DateTime.UtcNow.ToString("o"),
+                    items = noticias.Select(n => new
+                    {
+                        title = n.Title,
+                        description = n.Description,
+                        url = n.Url,
+                        publishedAt = n.PublishedAt.HasValue ? n.PublishedAt.Value.ToString("o") : null
+                    }).ToArray()
+                };
+                return Ok(result);
+            }
+            catch (HttpRequestException ex)
+            {
+                // Erro de rede/HTTP ao buscar a página alvo — retorna 502 com detalhe
+                return Problem(detail: ex.Message, statusCode: 502);
+            }
+            catch (Exception ex)
+            {
+                return Problem(detail: ex.ToString(), statusCode: 500);
+            }
         }
     }
 }

@@ -59,7 +59,8 @@ namespace ProjetoScrapping
             client.DefaultRequestHeaders.Add("Sec-Fetch-Dest", "document");
         }
 
-        private static bool IsHostAllowed(string url)
+        // Exposto para controllers/clients validarem antes de chamar o scraper
+        public static bool IsHostAllowed(string url)
         {
             try
             {
@@ -71,6 +72,9 @@ namespace ProjetoScrapping
                 return false;
             }
         }
+
+        // Fornece a lista atual de hosts permitidos (útil para mensagens de erro)
+        public static string GetAllowedHosts() => string.Join(',', AllowedHosts);
 
         public static async Task<string> GetPageAsync(string url)
         {
