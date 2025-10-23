@@ -9,9 +9,9 @@ namespace ProjetoScrapping.Controllers
     [Route("api/[controller]")]
     public class NoticiasController : ControllerBase
     {
-        // GET api/noticias (mantém compatibilidade)
+        // GET api/noticias
         [HttpGet]
-        public async Task<IActionResult> Get([FromQuery] string site = "https://noticias.uol.com.br")
+        public async Task<IActionResult> Get([FromQuery] string site = "https://www.sbravattimarcas.com.br/")
         {
             var noticias = await ProjetoScrapping.Request.GetNoticiasAsync(site);
 
@@ -30,33 +30,23 @@ namespace ProjetoScrapping.Controllers
             return Content(sb.ToString(), "text/html; charset=utf-8");
         }
 
-        // GET api/noticias/json -> retorna objeto { updatedAt, items }
+        // GET api/noticias/json -> retorna JSON com a lista (para o frontend consumir)
         [HttpGet("json")]
-        public async Task<IActionResult> GetJson([FromQuery] string site = "https://noticias.uol.com.br")
+        public async Task<IActionResult> GetJson([FromQuery] string site = "https://www.sbravattimarcas.com.br/")
         {
-            try
+            var noticias = await ProjetoScrapping.Request.GetNoticiasAsync(site);
+            var result = new
             {
-                var noticias = await ProjetoScrapping.Request.GetNoticiasAsync(site);
-
-                var result = new
+                updatedAt = DateTime.UtcNow.ToString("o"),
+                items = noticias.Select(n => new
                 {
-                    updatedAt = DateTime.UtcNow.ToString("o"),
-                    items = noticias.Select(n => new
-                    {
-                        title = n.Title,
-                        description = n.Description,
-                        url = n.Url,
-                        publishedAt = n.PublishedAt.HasValue ? n.PublishedAt.Value.ToString("o") : null
-                    }).ToArray()
-                };
-
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                // Retorna detalhes para debugging (remova/alterar em produção)
-                return Problem(detail: ex.ToString(), title: "Erro ao obter notícias");
-            }
+                    title = n.Title,
+                    description = n.Description,
+                    url = n.Url,
+                    publishedAt = n.PublishedAt.HasValue ? n.PublishedAt.Value.ToString("o") : null
+                }).ToArray()
+            };
+            return Ok(result);
         }
     }
 }

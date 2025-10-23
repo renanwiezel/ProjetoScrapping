@@ -172,7 +172,7 @@ namespace ProjetoScrapping
                 if (string.IsNullOrWhiteSpace(href)) continue;
 
                 var url = ResolveUrl(baseUrl, href);
-                if (!IsLikelyNews(url)) continue;
+                if (!IsLikelyNews(baseUrl, url)) continue;
 
                 if (seenTitles.Add(title) && seenUrls.Add(url))
                     outList.Add(new Noticia(title, null, url));
@@ -191,7 +191,7 @@ namespace ProjetoScrapping
             if (!string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(pageUrl))
             {
                 pageUrl = ResolveUrl(baseUrl, pageUrl);
-                if (seenTitles.Add(title) && seenUrls.Add(pageUrl))
+                if (IsLikelyNews(baseUrl, pageUrl) && seenTitles.Add(title) && seenUrls.Add(pageUrl))
                     outList.Add(new Noticia(title, null, pageUrl));
             }
         }
@@ -220,7 +220,7 @@ namespace ProjetoScrapping
                 if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(url)) continue;
 
                 url = ResolveUrl(baseUrl, url);
-                if (!IsLikelyNews(url)) continue;
+                if (!IsLikelyNews(baseUrl, url)) continue;
 
                 if (seenTitles.Add(title) && seenUrls.Add(url))
                     outList.Add(new Noticia(title, null, url));
@@ -242,7 +242,7 @@ namespace ProjetoScrapping
                 if (string.IsNullOrWhiteSpace(href)) continue;
 
                 var url = ResolveUrl(baseUrl, href);
-                if (!IsLikelyNews(url)) continue;
+                if (!IsLikelyNews(baseUrl, url)) continue;
 
                 if (seenTitles.Add(title) && seenUrls.Add(url))
                     outList.Add(new Noticia(title, null, url));
@@ -264,10 +264,23 @@ namespace ProjetoScrapping
             catch { return href; }
         }
 
-        private static bool IsLikelyNews(string url)
+        private static bool IsLikelyNews(string baseUrl, string url)
         {
             if (string.IsNullOrWhiteSpace(url)) return false;
-            return url.Contains("uol.com") || url.Contains("noticias") || url.Contains("/news/");
+
+            // se host bater com a host da base, aceitamos
+            try
+            {
+                var baseHost = new Uri(baseUrl).Host;
+                var urlHost = new Uri(url).Host;
+                if (string.Equals(baseHost, urlHost, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            catch { /* ignore */ }
+
+            // fallback por palavras-chave (mantemos suporte a vários sites)
+            var u = url.ToLowerInvariant();
+            return u.Contains("noticia") || u.Contains("noticias") || u.Contains("news") || u.Contains("feed") || u.Contains("rss") || u.Contains("uol") || u.Contains("g1") || u.Contains("folha");
         }
 
         private static string? ExtractJsonField(string json, string field)

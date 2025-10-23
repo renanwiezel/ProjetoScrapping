@@ -1,7 +1,6 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-
 using ProjetoScrapping.Models;
 using ProjetoScrapping.Services;
 
@@ -13,12 +12,11 @@ namespace ProjetoScrapping.Background
         private readonly INewsScraper _scraper;
         private readonly ILogger<NewsCacheRefresher> _log;
 
-        // sites que você quer manter no cache
+        // sites que você quer manter no cache (teste com sbravattimarcas)
         private readonly string[] _sites = new[]
         {
-        "https://noticias.uol.com.br",
-        // adicione mais se quiser
-    };
+            "https://www.sbravattimarcas.com.br/",
+        };
 
         private static readonly TimeSpan Interval = TimeSpan.FromSeconds(60);
 
