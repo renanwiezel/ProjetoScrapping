@@ -12,10 +12,9 @@ namespace ProjetoScrapping.Background
         private readonly INewsScraper _scraper;
         private readonly ILogger<NewsCacheRefresher> _log;
 
-        // sites que você quer manter no cache (teste com sbravattimarcas)
         private readonly string[] _sites = new[]
         {
-            "https://www.uol.com.br/",
+            "https://noticias.uol.com.br/",
         };
 
         private static readonly TimeSpan Interval = TimeSpan.FromSeconds(60);

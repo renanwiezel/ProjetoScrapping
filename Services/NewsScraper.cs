@@ -75,7 +75,6 @@ namespace ProjetoScrapping.Services
             // 3) Fallbacks manuais (feeds conhecidos)
             var fallbacks = new[]
             {
-                // referências ao UOL comentadas para manter apenas sbravattimarcas nos testes
                 "https://feeds.folha.uol.com.br/emcimadahora/rss091.xml",
                 "https://g1.globo.com/rss/g1/",
                 "https://www.estadao.com.br/rss/ultimas.xml",
