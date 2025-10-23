@@ -1,14 +1,16 @@
-# build stage
+# build
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 COPY . .
 RUN dotnet restore
 RUN dotnet publish -c Release -o /app
 
-# runtime stage
+# runtime
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 COPY --from=build /app .
-ENV ASPNETCORE_URLS=http://0.0.0.0:8080
-EXPOSE 8080
-ENTRYPOINT ["dotnet", "ProjetoScrapping.dll"]
+
+# O Render injeta a variável PORT em runtime.
+# Usamos 'sh -c' para expandir ${PORT} em tempo de execução.
+EXPOSE 10000
+CMD ["sh", "-c", "ASPNETCORE_URLS=http://0.0.0.0:${PORT} dotnet ProjetoScrapping.dll"]
