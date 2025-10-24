@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -15,14 +15,11 @@ namespace ProjetoScrapping
         private static readonly HttpClient client;
         private static readonly CookieContainer cookieJar = new CookieContainer();
         private static readonly Random rng = new Random();
-
-        // le a whitelist de hosts (em runtime) da variável ALLOWED_SITES
         private static readonly HashSet<string> AllowedHosts;
-
-        // local para persistir cookies UOL se forem obtidos pelo scraper
         private static readonly string CookieStoreDir = Path.Combine(AppContext.BaseDirectory ?? ".", "Data");
         private static readonly string UolCookieFile = Path.Combine(CookieStoreDir, "uol_cookies.txt");
-        private static readonly Uri UolRoot = new Uri("https://www.uol.com.br/");
+        private static readonly Uri UolRoot = new Uri("https://uol.com.br/");
+        private static readonly Uri NoticiasRoot = new Uri("https://noticias.uol.com.br/");
 
         static Request()
         {
@@ -60,7 +57,6 @@ namespace ProjetoScrapping
             client.DefaultRequestHeaders.Add("Sec-Fetch-User", "?1");
             client.DefaultRequestHeaders.Add("Sec-Fetch-Dest", "document");
 
-            // Inicializa cookies UOL a partir de variável de ambiente ou arquivo
             try
             {
                 var cookieString = Environment.GetEnvironmentVariable("UOL_COOKIES");
@@ -69,12 +65,18 @@ namespace ProjetoScrapping
                     EnsureCookieStoreDirectory();
                     File.WriteAllText(UolCookieFile, cookieString);
                     LoadCookiesFromString(UolRoot, cookieString);
+                    LoadCookiesFromString(NoticiasRoot, cookieString);
+                    Console.WriteLine("[INFO] Cookies UOL carregados de vari�vel de ambiente");
                 }
                 else if (File.Exists(UolCookieFile))
                 {
                     var stored = File.ReadAllText(UolCookieFile);
                     if (!string.IsNullOrWhiteSpace(stored))
+                    {
                         LoadCookiesFromString(UolRoot, stored);
+                        LoadCookiesFromString(NoticiasRoot, stored);
+                        Console.WriteLine("[INFO] Cookies UOL carregados de arquivo");
+                    }
                 }
             }
             catch (Exception ex)
@@ -100,7 +102,7 @@ namespace ProjetoScrapping
                     {
                         var name = parts[0].Trim();
                         var value = parts[1].Trim();
-                        try { cookieJar.Add(domain, new Cookie(name, Uri.UnescapeDataString(value))); }
+                        try { cookieJar.Add(domain, new Cookie(name, value)); }
                         catch { }
                     }
                 }
@@ -114,7 +116,7 @@ namespace ProjetoScrapping
             {
                 EnsureCookieStoreDirectory();
                 var cc = cookieJar.GetCookies(domain).Cast<Cookie>();
-                var s = string.Join(';', cc.Select(c => c.Name + "=" + Uri.EscapeDataString(c.Value)));
+                var s = string.Join(';', cc.Select(c => c.Name + "=" + c.Value));
                 File.WriteAllText(filePath, s);
             }
             catch (Exception ex)
@@ -127,38 +129,35 @@ namespace ProjetoScrapping
         {
             try
             {
-                var existing = cookieJar.GetCookies(UolRoot);
-                if (existing != null && existing.Count > 0) return;
-
-                if (File.Exists(UolCookieFile))
+                var existing = cookieJar.GetCookies(NoticiasRoot);
+                if (existing != null && existing.Count > 0)
                 {
-                    var stored = File.ReadAllText(UolCookieFile);
-                    if (!string.IsNullOrWhiteSpace(stored))
-                    {
-                        LoadCookiesFromString(UolRoot, stored);
-                        var after = cookieJar.GetCookies(UolRoot);
-                        if (after != null && after.Count > 0) return;
-                    }
+                    Console.WriteLine($"[DEBUG] Usando {existing.Count} cookies existentes para not�cias");
+                    return;
                 }
 
-                using var req = new HttpRequestMessage(HttpMethod.Get, UolRoot);
-                using var res = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
-                _ = await SafeReadAsync(res);
-                SaveCookiesToFile(UolRoot, UolCookieFile);
+                Console.WriteLine("[INFO] Sem cookies. Favor configurar UOL_COOKIES manualmente.");
+                Console.WriteLine("[INFO] No Chrome: F12 ? Console ? document.cookie");
+                Console.WriteLine("[INFO] Depois: set UOL_COOKIES=\"cookie1=value1; cookie2=value2\"");
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Falha ao garantir cookies UOL: {ex.Message}");
+                Console.Error.WriteLine($"[ERROR] Falha ao garantir cookies: {ex.Message}");
             }
         }
 
-        // Exposto para controllers/clients validarem antes de chamar o scraper
         public static bool IsHostAllowed(string url)
         {
             try
             {
                 var host = new Uri(url).Host.ToLowerInvariant();
-                return AllowedHosts.Contains(host);
+                foreach (var allowed in AllowedHosts)
+                {
+                    if (host == allowed) return true;
+                    if (host.EndsWith("." + allowed, StringComparison.OrdinalIgnoreCase)) return true;
+                    if (host.EndsWith(allowed, StringComparison.OrdinalIgnoreCase)) return true;
+                }
+                return false;
             }
             catch { return false; }
         }
@@ -168,34 +167,36 @@ namespace ProjetoScrapping
         public static async Task<string> GetPageAsync(string url)
         {
             if (!IsHostAllowed(url))
-                throw new HttpRequestException($"Host não permitido: {url}");
+                throw new HttpRequestException($"Host n�o permitido: {url}");
 
             try
             {
                 var u = new Uri(url);
                 if (u.Host.Contains("uol.com"))
+                {
                     await EnsureCookiesForUolAsync();
+
+                    var cookiesToSend = cookieJar.GetCookies(u);
+                    Console.WriteLine($"[DEBUG] Enviando {cookiesToSend.Count} cookies para {u.Host}");
+                }
             }
             catch { }
 
             var scraperKey = Environment.GetEnvironmentVariable("SCRAPER_API_KEY");
             if (!string.IsNullOrWhiteSpace(scraperKey))
             {
+                Console.WriteLine("[DEBUG] Usando ScraperAPI");
                 var proxy = $"http://api.scraperapi.com?api_key={WebUtility.UrlEncode(scraperKey)}&url={WebUtility.UrlEncode(url)}&render=true";
                 try
                 {
                     using var req = new HttpRequestMessage(HttpMethod.Get, proxy);
-                    using var res = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
-                    if (!res.IsSuccessStatusCode)
-                    {
-                        var body = await SafeReadAsync(res);
-                        throw new HttpRequestException($"Proxy request failed {res.StatusCode}. Snippet: {body}");
-                    }
+                    using var res = await client.SendAsync(req);
+                    res.EnsureSuccessStatusCode();
                     return await res.Content.ReadAsStringAsync();
                 }
                 catch (Exception ex)
                 {
-                    Console.Error.WriteLine($"Proxy fetch failed: {ex.Message}");
+                    Console.Error.WriteLine($"ScraperAPI falhou: {ex.Message}");
                 }
             }
 
@@ -205,25 +206,14 @@ namespace ProjetoScrapping
                 try
                 {
                     using var req = new HttpRequestMessage(HttpMethod.Get, url);
-                    try
-                    {
-                        var baseUri = new Uri(url);
-                        req.Headers.Referrer = new Uri(baseUri.GetLeftPart(UriPartial.Authority));
-                    }
-                    catch { }
+                    using var res = await client.SendAsync(req);
 
-                    using var res = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
                     if (!res.IsSuccessStatusCode)
                     {
-                        var body = await SafeReadAsync(res);
-                        var msg = $"GET {url} -> {(int)res.StatusCode} {res.ReasonPhrase}";
-                        if (!string.IsNullOrEmpty(body))
-                        {
-                            var snippet = body.Length > 1200 ? body.Substring(0, 1200) : body;
-                            msg += $"\nBody snippet:\n{snippet}";
-                        }
-                        throw new HttpRequestException(msg);
+                        var body = await res.Content.ReadAsStringAsync();
+                        throw new HttpRequestException($"GET {url} -> {res.StatusCode}");
                     }
+
                     return await res.Content.ReadAsStringAsync();
                 }
                 catch (HttpRequestException) when (attempt < maxAttempts)
@@ -233,16 +223,9 @@ namespace ProjetoScrapping
                 }
             }
 
-            throw new HttpRequestException($"Falha ao obter '{url}' após múltiplas tentativas.");
+            throw new HttpRequestException($"Falha ao obter '{url}' ap�s {maxAttempts} tentativas");
         }
 
-        private static async Task<string> SafeReadAsync(HttpResponseMessage res)
-        {
-            try { return await res.Content.ReadAsStringAsync(); }
-            catch { return string.Empty; }
-        }
-
-        // ---------- PARSER ROBUSTO ----------
         public static List<Noticia> ParseHtml(string html, string baseUrl)
         {
             var noticias = new List<Noticia>();
@@ -494,14 +477,12 @@ namespace ProjetoScrapping
             return null;
         }
 
-        // API pública
         public static async Task<List<Noticia>> GetNoticiasAsync(string url)
         {
             var html = await GetPageAsync(url);
             return ParseHtml(html, url);
         }
 
-        // API pública para atualizar cookies UOL em runtime
         public static void UpdateUolCookies(string cookieString)
         {
             try
@@ -510,6 +491,8 @@ namespace ProjetoScrapping
                 EnsureCookieStoreDirectory();
                 File.WriteAllText(UolCookieFile, cookieString);
                 LoadCookiesFromString(UolRoot, cookieString);
+                LoadCookiesFromString(NoticiasRoot, cookieString);
+                Console.WriteLine("[INFO] Cookies UOL atualizados com sucesso!");
             }
             catch (Exception ex)
             {
