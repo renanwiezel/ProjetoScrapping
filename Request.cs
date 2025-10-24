@@ -25,14 +25,31 @@ namespace ProjetoScrapping
         {
             var allowed = Environment.GetEnvironmentVariable("ALLOWED_SITES") ?? "https://noticias.uol.com.br/";
             AllowedHosts = allowed.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                                 .Select(h => h.ToLowerInvariant())
+                                 .Select(urlOrHost =>
+                                 {
+                                     try
+                                     {
+                                         // Se for uma URL completa, extrai apenas o host
+                                         if (urlOrHost.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                                             urlOrHost.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                                         {
+                                             return new Uri(urlOrHost).Host.ToLowerInvariant();
+                                         }
+                                         // Se já for apenas o host, usa direto
+                                         return urlOrHost.ToLowerInvariant();
+                                     }
+                                     catch
+                                     {
+                                         return urlOrHost.ToLowerInvariant();
+                                     }
+                                 })
                                  .ToHashSet();
 
             var handler = new HttpClientHandler
             {
                 AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
                 AllowAutoRedirect = true,
-                MaxAutomaticRedirections = 10, // Adicionar este parâmetro
+                MaxAutomaticRedirections = 10,
                 UseCookies = true,
                 CookieContainer = cookieJar,
                 ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
