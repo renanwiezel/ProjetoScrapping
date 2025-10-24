@@ -34,17 +34,20 @@ namespace ProjetoScrapping
                 AllowAutoRedirect = true,
                 UseCookies = true,
                 CookieContainer = cookieJar,
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
             };
 
-            handler.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
+            // Remover configuração explícita de SSL - deixar o sistema decidir
+            // handler.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
 
             client = new HttpClient(handler)
             {
                 Timeout = TimeSpan.FromSeconds(30)
             };
 
-            client.DefaultRequestVersion = new Version(2, 0);
-            client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
+            // Usar HTTP/1.1 para melhor compatibilidade
+            client.DefaultRequestVersion = new Version(1, 1);
+            // client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
 
             client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
             client.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
