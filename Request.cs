@@ -32,6 +32,7 @@ namespace ProjetoScrapping
             {
                 AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
                 AllowAutoRedirect = true,
+                MaxAutomaticRedirections = 10, // Adicionar este parâmetro
                 UseCookies = true,
                 CookieContainer = cookieJar,
                 ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
