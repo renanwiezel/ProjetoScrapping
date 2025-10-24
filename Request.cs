@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -23,7 +23,7 @@ namespace ProjetoScrapping
 
         static Request()
         {
-            var allowed = Environment.GetEnvironmentVariable("ALLOWED_SITES") ?? "www.sbravattimarcas.com.br,noticias.uol.com.br,uol.com.br,www.uol.com.br";
+            var allowed = Environment.GetEnvironmentVariable("ALLOWED_SITES") ?? "https://noticias.uol.com.br/";
             AllowedHosts = allowed.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                                  .Select(h => h.ToLowerInvariant())
                                  .ToHashSet();
@@ -66,7 +66,7 @@ namespace ProjetoScrapping
                     File.WriteAllText(UolCookieFile, cookieString);
                     LoadCookiesFromString(UolRoot, cookieString);
                     LoadCookiesFromString(NoticiasRoot, cookieString);
-                    Console.WriteLine("[INFO] Cookies UOL carregados de variável de ambiente");
+                    Console.WriteLine("[INFO] Cookies UOL carregados de variÃ¡vel de ambiente");
                 }
                 else if (File.Exists(UolCookieFile))
                 {
@@ -132,12 +132,12 @@ namespace ProjetoScrapping
                 var existing = cookieJar.GetCookies(NoticiasRoot);
                 if (existing != null && existing.Count > 0)
                 {
-                    Console.WriteLine($"[DEBUG] Usando {existing.Count} cookies existentes para notícias");
+                    Console.WriteLine($"[DEBUG] Usando {existing.Count} cookies existentes para notÃ­cias");
                     return;
                 }
 
                 Console.WriteLine("[INFO] Sem cookies. Favor configurar UOL_COOKIES manualmente.");
-                Console.WriteLine("[INFO] No Chrome: F12 ? Console ? document.cookie");
+                Console.WriteLine("[INFO] No Chrome: F12 â†’ Console â†’ document.cookie");
                 Console.WriteLine("[INFO] Depois: set UOL_COOKIES=\"cookie1=value1; cookie2=value2\"");
             }
             catch (Exception ex)
@@ -167,12 +167,12 @@ namespace ProjetoScrapping
         public static async Task<string> GetPageAsync(string url)
         {
             if (!IsHostAllowed(url))
-                throw new HttpRequestException($"Host não permitido: {url}");
+                throw new HttpRequestException($"Host nÃ£o permitido: {url}");
 
             try
             {
                 var u = new Uri(url);
-                if (u.Host.Contains("uol.com"))
+                if (u.Host.Contains("noticia.uol.com"))
                 {
                     await EnsureCookiesForUolAsync();
 
@@ -223,7 +223,7 @@ namespace ProjetoScrapping
                 }
             }
 
-            throw new HttpRequestException($"Falha ao obter '{url}' após {maxAttempts} tentativas");
+            throw new HttpRequestException($"Falha ao obter '{url}' apÃ³s {maxAttempts} tentativas");
         }
 
         public static List<Noticia> ParseHtml(string html, string baseUrl)
